@@ -18,7 +18,7 @@ def run_scene_detection():
     print("🔍 Detecting scene changes...")
     result = subprocess.run([
         'ffmpeg', '-i', INPUT_VIDEO,
-        '-filter_complex', 'select=gt(scene\\,0.4),metadata=print',
+        '-filter_complex', 'select=gt(scene\\,0.2),metadata=print',
         '-an', '-f', 'null', '-'
     ], stderr=subprocess.PIPE, text=True)
 
@@ -36,7 +36,7 @@ def run_scene_detection():
             f.write(f"{ts}\n")
     print(f"✅ Found {len(timestamps)} scenes.")
 
-def extract_multiple_frames(frames_per_scene=5):
+def extract_multiple_frames(frames_per_scene=10):
     """Extract multiple frames around each scene timestamp."""
     if os.path.exists(RAW_FRAMES_DIR):
         shutil.rmtree(RAW_FRAMES_DIR)
@@ -128,7 +128,7 @@ def main():
         print(f"❌ Input video not found: {INPUT_VIDEO}")
         return
     run_scene_detection()
-    extract_multiple_frames(frames_per_scene=5)
+    extract_multiple_frames(frames_per_scene=10)
     filter_best_images()
     print("\n🧹 Done!")
 

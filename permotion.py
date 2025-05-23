@@ -1,10 +1,10 @@
 import os
 import subprocess
 
-IMAGES_DIR = "all"  # Folder containing the images
-OUTPUT_VIDEO = "promotion.mp4"  # Output video name
-DURATION_PER_IMAGE = 6  # Duration per image in seconds
-NUM_IMAGES = 6  # Total number of images (as you mentioned)
+IMAGES_DIR = "all1"  # Folder containing the images
+OUTPUT_VIDEO = "promotion1.mp4"  # Output video name
+DURATION_PER_IMAGE = 5  # Duration per image in seconds
+NUM_IMAGES =17  # Total number of images (as you mentioned) 
 
 def generate_image_list():
     all_images = sorted(os.listdir(IMAGES_DIR))
@@ -27,7 +27,7 @@ def create_video():
     print("🎞️ Generating slideshow video...")
     subprocess.run([
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "slideshow_list.txt",
-                        "-vf", "scale=1280:720",
+        "-vf", "scale=1920:1080,setsar=1:1",  # Full HD resolution
         "-vsync", "vfr", "-pix_fmt", "yuv420p", OUTPUT_VIDEO
     ], check=True)
     print(f"✅ Slideshow created: {OUTPUT_VIDEO}")

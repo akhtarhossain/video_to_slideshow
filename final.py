@@ -2,7 +2,7 @@ import os
 import subprocess
 
 # Input videos
-VIDEOS_TO_MERGE = ["start.mp4", "last.mp4"]
+VIDEOS_TO_MERGE = ["new.mp4", "last.mp4"]
 FINAL_VIDEO = "final_output.mp4"
 TEMP_FILE = "temp_list.txt"
 

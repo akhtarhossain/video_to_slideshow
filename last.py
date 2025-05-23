@@ -2,74 +2,69 @@ import os
 import subprocess
 import random
 import math
+from tqdm import tqdm
 
-# CONFIG
-IMAGE_FOLDER = "clear_scenes"  # Images folder
-OUTPUT_VIDEO = "last.mp4"      # Final output video file
-BACKGROUND_MUSIC = "voice.mp3" # Background music file
-IMAGE_DURATION = 5            # Each image duration in seconds
-TOTAL_DURATION = 78          # Total video length in seconds (2h 11m)
+# CONFIGURATION
+IMAGE_FOLDER = "clear_scenes"
+OUTPUT_VIDEO = "last.mp4"
+BACKGROUND_MUSIC = "voice.mp3"
+IMAGE_DURATION = 10  # Each image duration = 10 seconds (reduced from 20)
+TOTAL_DURATION = 5360  # Total video duration in seconds (e.g. 2 hours 10 sec)
 
 def check_requirements():
-    # Check images folder
     if not os.path.exists(IMAGE_FOLDER) or not os.path.isdir(IMAGE_FOLDER):
         raise Exception(f"❌ Required image folder not found: {IMAGE_FOLDER}")
-
-    # Check if background music file exists
     if not os.path.exists(BACKGROUND_MUSIC):
         raise Exception(f"❌ Background music file not found: {BACKGROUND_MUSIC}")
 
 def create_slideshow():
-    check_requirements()  # Check before starting any processing
+    check_requirements()
 
-    # Read all images from folder
     images = [img for img in os.listdir(IMAGE_FOLDER) if img.lower().endswith(('.jpg', '.jpeg', '.png'))]
-    
     if not images:
         raise Exception("❌ No images found in clear_scenes folder.")
-    
-    # Kitni images chahiye?
-    images_needed = math.ceil(TOTAL_DURATION / IMAGE_DURATION)
-    
-    final_images = []
-    while len(final_images) < images_needed:
-        final_images.append(random.choice(images))  # Randomly select images for repeat
 
-    # Create images.txt for ffmpeg concat
+    images_needed = math.ceil(TOTAL_DURATION / IMAGE_DURATION)
+    final_images = []
+
+    print(f"🧮 Generating {images_needed} images with random repetition...\n")
+    for _ in tqdm(range(images_needed), desc="📸 Selecting images"):
+        final_images.append(random.choice(images))
+
+    # Create images.txt file for FFmpeg
     with open("images.txt", "w") as f:
-        for img in final_images:
+        for img in final_images[:-1]:  # all except last
             f.write(f"file '{os.path.join(IMAGE_FOLDER, img)}'\n")
             f.write(f"duration {IMAGE_DURATION}\n")
+        f.write(f"file '{os.path.join(IMAGE_FOLDER, final_images[-1])}'\n")  # last image, no duration
 
-    print("🎞️ Creating slideshow video without audio...")
+    print("🎞️ Creating slideshow video with zoom effect...")
 
-    # Step 1: Create slideshow video WITHOUT audio
     subprocess.run([
         "ffmpeg", "-y",
         "-f", "concat", "-safe", "0", "-i", "images.txt",
-        "-vf", "zoompan=z='zoom+0.001':d=300:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)',fps=30",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-vf", "scale=1280:720,zoompan=z='zoom+0.0005':d=300:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)',fps=30", # Reduced zoom speed (d)
+        "-c:v", "libx264", "-preset", "faster", "-pix_fmt", "yuv420p", # Added faster preset
         "temp_video.mp4"
     ], check=True)
 
     print("✅ Slideshow video created: temp_video.mp4")
+    print("🎵 Adding background music (looped and trimmed)...")
 
-    print("🎵 Adding background music...")
-
-    # Step 2: Add background music by looping it
     subprocess.run([
         "ffmpeg", "-y",
-        "-stream_loop", "-1", "-i", BACKGROUND_MUSIC,  # Loop the music infinitely
-        "-i", "temp_video.mp4",                        # Input the temp video
-        "-shortest",                                   # Cut extra audio if longer than video
-        "-c:v", "copy",                                # Don't re-encode video (fast)
-        "-c:a", "aac", "-b:a", "192k",                  # Audio settings
+        "-stream_loop", "-1", "-i", BACKGROUND_MUSIC,  # loop music if needed
+        "-i", "temp_video.mp4",
+        "-shortest",  # cut audio to match video
+        "-c:v", "copy",
+        "-c:a", "aac", "-b:a", "192k",
+        "-ar", "48000", "-ac", "2",
         OUTPUT_VIDEO
     ], check=True)
 
     print(f"✅ Final video created with background music: {OUTPUT_VIDEO}")
 
-    # Step 3: Cleanup temp files
+    # Cleanup
     if os.path.exists("temp_video.mp4"):
         os.remove("temp_video.mp4")
 
@@ -79,7 +74,6 @@ def main():
     except Exception as e:
         print(f"⚠️ Error: {e}")
     finally:
-        # Cleanup temp text file
         if os.path.exists("images.txt"):
             os.remove("images.txt")
 

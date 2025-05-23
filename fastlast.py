@@ -8,7 +8,7 @@ IMAGE_FOLDER = "clear_scenes"      # Folder jahan images hain
 OUTPUT_VIDEO = "last.mp4"          # Final output video name
 BACKGROUND_MUSIC = "voice.mp3"     # Background music file
 IMAGE_DURATION = 10                # Har image ka duration (seconds)
-TOTAL_DURATION = 7860              # Total video duration in seconds
+TOTAL_DURATION = 2200              # Total video duration in seconds
 
 def create_slideshow():
     # Read all images from folder

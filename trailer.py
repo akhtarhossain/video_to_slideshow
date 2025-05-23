@@ -7,8 +7,10 @@ OUTPUT_VIDEO = "trailer.mp4"
 DURATION_PER_CLIP = 3  # seconds
 TOTAL_DURATION = 35    # seconds
 NUM_CLIPS = TOTAL_DURATION // DURATION_PER_CLIP
+MUSIC_START_TIME = 8   # start music from 8 seconds
 
 def extract_random_clips():
+    # Get video duration
     result = subprocess.run(
         ["ffmpeg", "-i", INPUT_VIDEO],
         stderr=subprocess.PIPE, stdout=subprocess.PIPE
@@ -25,12 +27,20 @@ def extract_random_clips():
 
     print(f"🎥 Video Duration: {video_duration} seconds")
 
-    random_starts = random.sample(range(video_duration - DURATION_PER_CLIP), NUM_CLIPS)
-    return random_starts
+    # Calculate maximum possible unique clips
+    max_possible_clips = (video_duration - DURATION_PER_CLIP) // DURATION_PER_CLIP
+    if max_possible_clips < NUM_CLIPS:
+        raise Exception(f"❌ Not enough video content. Need at least {NUM_CLIPS * DURATION_PER_CLIP} seconds of unique content.")
+
+    # Generate non-overlapping random start times (in random order)
+    possible_starts = list(range(0, video_duration - DURATION_PER_CLIP, DURATION_PER_CLIP))
+    random_starts = random.sample(possible_starts, NUM_CLIPS)  # No sorting here
+    
+    return random_starts  # Returns in random order
 
 def create_clip_list(random_starts):
     with open("clip_list.txt", "w") as f:
-        for start_time in random_starts:
+        for start_time in random_starts:  # Already in random order
             clip_filename = f"clip_{start_time}.mp4"
             f.write(f"file '{clip_filename}'\n")
             f.write(f"duration {DURATION_PER_CLIP}\n")
@@ -46,32 +56,6 @@ def create_clip_list(random_starts):
             ], check=True)
             print(f"✅ Clip created: {clip_filename} ({start_time}-{start_time + DURATION_PER_CLIP}s)")
 
-def create_image_intro():
-    image_files = ["trailer1.jpeg", "trailer2.jpeg", "trailer3.jpeg"]
-    with open("image_list.txt", "w") as f:
-        for image in image_files:
-            image_clip = f"{image}.mp4"
-            subprocess.run([
-                "ffmpeg", "-y",
-                "-loop", "1",
-                "-i", image,
-                "-t", "3",
-                "-vf", "scale=1280:720",
-                "-c:v", "libx264",
-                "-pix_fmt", "yuv420p",
-                image_clip
-            ], check=True)
-            f.write(f"file '{image_clip}'\n")
-            f.write("duration 2\n")
-            print(f"🖼️ Image clip created: {image_clip}")
-
-    subprocess.run([
-        "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0", "-i", "image_list.txt",
-        "-c", "copy", "intro.mp4"
-    ], check=True)
-    print("🎬 Intro video created: intro.mp4")
-
 def has_audio_stream(file_path):
     result = subprocess.run(
         ["ffprobe", "-i", file_path, "-show_streams", "-select_streams", "a", "-loglevel", "error"],
@@ -83,36 +67,31 @@ def has_audio_stream(file_path):
 def create_video():
     print("🎞️ Generating trailer...")
 
-    temp_clips_video = "temp1_video.mp4"
-    full_trailer_video = "temp2_full_video.mp4"
-
-    # Create video from clips
+    # Create video from clips (will be in random order)
     subprocess.run([
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "clip_list.txt",
-        "-vsync", "vfr", "-pix_fmt", "yuv420p", temp_clips_video
+        "-vsync", "vfr", "-pix_fmt", "yuv420p", "temp_video.mp4"
     ], check=True)
-    print(f"✅ Clips video created: {temp_clips_video}")
+    print("✅ Random clips video created: temp_video.mp4")
 
-    # Combine intro + clips
-    with open("final_list.txt", "w") as f:
-        f.write("file 'intro.mp4'\n")
-        f.write(f"file '{temp_clips_video}'\n")
-
+    # Create trimmed music (starting from 8 seconds)
     subprocess.run([
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "final_list.txt",
-        "-c", "copy", full_trailer_video
+        "ffmpeg", "-y",
+        "-ss", str(MUSIC_START_TIME),
+        "-i", "music.mp3",
+        "-c", "copy", "trimmed_music.mp3"
     ], check=True)
-    print(f"✅ Full trailer created (intro + clips): {full_trailer_video}")
+    print("🎵 Trimmed music created (starting from 8 seconds)")
 
     # Add background music
-    if has_audio_stream(full_trailer_video):
+    if has_audio_stream("temp_video.mp4"):
         print("🔈 Original audio found. Mixing with background music...")
         subprocess.run([
             "ffmpeg", "-y",
-            "-i", full_trailer_video,
-            "-i", "music.mp3",
+            "-i", "temp_video.mp4",
+            "-i", "trimmed_music.mp3",
             "-filter_complex",
-            "[0:a]volume=0.08[a1];[1:a]volume=1.0[a2];[a1][a2]amix=inputs=2:duration=shortest[aout]",
+            "[0:a]volume=0.02[a1];[1:a]volume=1.0[a2];[a1][a2]amix=inputs=2:duration=shortest[aout]",
             "-map", "0:v",
             "-map", "[aout]",
             "-c:v", "copy",
@@ -124,8 +103,8 @@ def create_video():
         print("🎵 No original audio found. Adding only background music...")
         subprocess.run([
             "ffmpeg", "-y",
-            "-i", full_trailer_video,
-            "-i", "music.mp3",
+            "-i", "temp_video.mp4",
+            "-i", "trimmed_music.mp3",
             "-map", "0:v:0",
             "-map", "1:a:0",
             "-c:v", "copy",
@@ -134,16 +113,15 @@ def create_video():
             OUTPUT_VIDEO
         ], check=True)
 
-    print(f"✅ Final trailer with music created: {OUTPUT_VIDEO}")
+    print(f"✅ Final trailer with random clips and music created: {OUTPUT_VIDEO}")
 
     # Cleanup intermediate files
-    for f in ["intro.mp4", temp_clips_video, full_trailer_video, "final_list.txt"]:
+    for f in ["temp_video.mp4", "trimmed_music.mp3"]:
         if os.path.exists(f):
             os.remove(f)
 
 def main():
     try:
-        create_image_intro()
         random_starts = extract_random_clips()
         create_clip_list(random_starts)
         create_video()
@@ -151,19 +129,13 @@ def main():
         print(f"⚠️ Error: {e}")
     finally:
         # Clean up clip files
-        for start_time in range(0, 10000):  # big range to cover all generated clips
+        for start_time in range(0, 10000):
             clip_filename = f"clip_{start_time}.mp4"
             if os.path.exists(clip_filename):
                 os.remove(clip_filename)
-        # Clean up image clips
-        for i in range(1, 4):
-            img_clip = f"trailer{i}.jpeg.mp4"
-            if os.path.exists(img_clip):
-                os.remove(img_clip)
         # Clean up lists
-        for list_file in ["clip_list.txt", "image_list.txt"]:
-            if os.path.exists(list_file):
-                os.remove(list_file)
+        if os.path.exists("clip_list.txt"):
+            os.remove("clip_list.txt")
 
 if __name__ == "__main__":
     main()

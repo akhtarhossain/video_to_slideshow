@@ -4,7 +4,7 @@ input_file = "final_output.mp4"  # apni original video ka naam yahan likhein
 output_file = "output_cut.mp4"  # final video ka naam
 
 # 2 hours 21 minutes = 02:21:00
-cut_duration = "02:10:00"
+cut_duration = "02:10:36"
 
 # ffmpeg command to trim the video
 command = [
